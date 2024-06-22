@@ -4,7 +4,11 @@ import os
 import shutil
 from datetime import datetime, timedelta
 from git import Repo
+from docx import Document
+from docx.shared import Inches
 import difflib
+
+records = ()
 
 def clone_repository(repo_url, clone_dir):
     try:
@@ -89,12 +93,51 @@ def check_refactoring_frequency(repo_path, file_path, days):
         avg_refactoring_time_ratio = sum(refactoring_time_ratios) / len(refactoring_time_ratios)
         print(f"Average refactoring time ratio: {avg_refactoring_time_ratio:.2f}")
 
+        add_report_line(git_file_path,len(commits), avg_refactoring_time_ratio)
+
         return avg_refactoring_time_ratio
     except Exception as e:
         print(f"An error occurred while analyzing the repository: {e}")
         return -1
 
+def add_report_line(git_file_path, num_commits, avg_refactoring_time_ratio):
+    global records
+
+    y = ((git_file_path, str(num_commits), str(avg_refactoring_time_ratio)),)
+
+    records += y
+
+def generate_report(days):
+
+    document = Document()
+
+    ct = datetime.now().replace(second=0, microsecond=0)
+
+    current_date = str(ct).replace(':', '').split(' ')[0]
+
+    document.add_heading('Refactoring Report for ' + current_date, 0)
+
+    p = document.add_paragraph('Results from the Refactoring analysis for the past '+str(days)+' days:')
+
+    global records
+
+    table = document.add_table(rows=1, cols=3)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Class Name'
+    hdr_cells[1].text = 'Commit Count'
+    hdr_cells[2].text = 'Avg Refactor Time Ratio'
+    for class_name, commit_count, refactor_ratio in records:
+        row_cells = table.add_row().cells
+        row_cells[0].text = class_name
+        row_cells[1].text = commit_count
+        row_cells[2].text = refactor_ratio
+
+    document.add_page_break()
+
+    document.save('Refactoring Report - ' + str(ct).replace(':', '') + '.docx')
+
 def main(repo_url, days):
+    
     clone_dir = 'cloned_repo'
 
     # Check if clone directory already exists
@@ -138,6 +181,8 @@ def main(repo_url, days):
             print("\nIt seems like there has been frequent refactoring recently. Consider stabilizing the code.")
         else:
             print("\nThe code seems stable with minimal recent changes.")
+
+    generate_report(days)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
