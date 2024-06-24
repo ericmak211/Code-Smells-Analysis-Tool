@@ -127,8 +127,6 @@ def provide_python_recommendations(issues):
         'C0200': 'Consider using enumerate() instead of iterating with range() and len().',
         'C0301': 'Line too long . Consider breaking the line into smaller parts.',
         'C0302': 'Too many lines in module . Consider refactoring into smaller modules.',
-        'C0303': 'Consider removing unnecessary empty spaces.',
-        'C0305': 'Consider removing unnecessary empty lines.',
         'C0321': 'Multiple statements on one line.',
         'C0325': 'Unnecessary parens after.',
         'C0330': 'Consider fixing indentation.',
@@ -201,29 +199,33 @@ def provide_python_recommendations(issues):
 
     # Print issues grouped by code
     for code, issue_info in issues_by_code.items():
-        print('######################################################################################')
-        print(f"Code: {code}\n")
-        print(f"Code Smell: {issue_info['message']}\n")
-        
-        print("Locations:")
-        for file_path, line_number in issue_info['locations']:
-            try:
-                print(f"- Line: {line_number}")
-            except:
-                continue
-            with open(file_path, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
-                if line_number <= len(lines):
-                    print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
-                else:
-                    print(f"  Line number {line_number} exceeds total lines in file.")
-        print() 
-
         if code in recommendations:
+            if code == 'E0401':
+                issue_info['message'] = 'Unable to import following libraries:'
+            print('######################################################################################')
+            print(f"Code: {code}\n")
+            print(f"Code Smell: {issue_info['message']}\n")
+            
+            print("Locations:")
+            for file_path, line_number in issue_info['locations']:
+                try:
+                    print(f"- Line: {line_number}")
+                except:
+                    continue
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    lines = file.readlines()
+                    if line_number <= len(lines):
+                        print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
+                    else:
+                        print(f"  Line number {line_number} exceeds total lines in file.")
+            print() 
+
+            
             print(f"Recommendation: {recommendations[code]}\n")
 
         else:
-            print(f"Recommendation: General code improvement suggested.\n")
+            continue
+
     print('#####################################################################################################')
     print(rate)
     print('######################################################################################')
