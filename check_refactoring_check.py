@@ -4,23 +4,15 @@ import os
 import shutil
 from datetime import datetime, timedelta
 from git import Repo
-from docx import Document
-from docx.shared import Inches
 import difflib
+import xml.etree.ElementTree as ET
 
-records = ()
-
+rate = ''
 def clone_repository(repo_url, clone_dir):
-    try:
-        if os.path.exists(clone_dir):
-            shutil.rmtree(clone_dir)
-        Repo.clone_from(repo_url, clone_dir)
-        print(f"Repository cloned to {clone_dir}")
-        return True
-    except Exception as e:
-        print(f"An error occurred while cloning the repository: {e}")
-        return False
-
+    Repo.clone_from(repo_url, clone_dir)
+    print(f"\nRepository cloned to {clone_dir}")
+    return True
+        
 def find_python_files(directory):
     python_files = []
     for root, _, files in os.walk(directory):
@@ -93,60 +85,218 @@ def check_refactoring_frequency(repo_path, file_path, days):
         avg_refactoring_time_ratio = sum(refactoring_time_ratios) / len(refactoring_time_ratios)
         print(f"Average refactoring time ratio: {avg_refactoring_time_ratio:.2f}")
 
-        add_report_line(git_file_path,len(commits), avg_refactoring_time_ratio)
-
         return avg_refactoring_time_ratio
     except Exception as e:
         print(f"An error occurred while analyzing the repository: {e}")
         return -1
 
-def add_report_line(git_file_path, num_commits, avg_refactoring_time_ratio):
-    global records
+def check_python_code_smells(file_path):
+    global rate
+    try:
+        # Run pylint on the provided file and capture the output
+        result = subprocess.run(
+            ['pylint', file_path],
+            capture_output=True,
+            text=True
+        )
 
-    y = ((git_file_path, str(num_commits), str(avg_refactoring_time_ratio)),)
+        # Parse pylint output
+        issues = []
+        for line in result.stdout.splitlines():
+            if line.startswith('cloned_repo'):
+                parts = line.split(': ', 1)
+                if len(parts) == 2:
+                    path = parts[0].split(' ', 1)[0]  # Extract path and issue type
+                    message = parts[1]
+                    issues.append(f"{path}: {message}")
+            elif "Your code has been rated" in line:
+                rate = line
 
-    records += y
+        return issues
+    except FileNotFoundError:
+        print(f"The file {file_path} does not exist.")
+        return -1
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return -1
 
-def generate_report(days):
+def provide_python_recommendations(issues):
+    issues_by_code = {}
+    recommendations = {
+        'C0103': 'Invalid name . Use a consistent naming style, such as snake_case for variables and functions, and CamelCase for classes.',
+        'C0111': 'Missing module/class/function docstring. Consider adding a docstring to improve code documentation.',
+        'C0114': 'To improve code readability and maintainability, include a docstring at the beginning of your module. A good module docstring should provide a brief overview of the module\'s purpose, its functionality, and any important information that might help other developers understand and use the module. Follow the PEP 257 conventions for module docstrings.',
+        'C0116': 'To improve code readability and maintainability, always include a docstring at the beginning of your functions and methods. A good docstring should describe the purpose of the function, its parameters, return values, and any exceptions it might raise. Follow the PEP 257 conventions for docstrings.',
+        'C0200': 'Consider using enumerate() instead of iterating with range() and len().',
+        'C0301': 'Line too long . Consider breaking the line into smaller parts.',
+        'C0302': 'Too many lines in module . Consider refactoring into smaller modules.',
+        'C0303': 'Trailing whitespace found.',
+        'C0321': 'Multiple statements on one line.',
+        'C0325': 'Unnecessary parens after.',
+        'C0330': 'Consider fixing indentation.',
+        'C0411': 'Wrong import order. Imports should be grouped in the following order: standard library imports, related third-party imports, local application/library-specific imports.',
+        'C0412': 'Imports not grouped. Separate imports by blank line.',
+        'C1801': 'Do not use `len()` to check if a sequence is empty. Instead, use `if`.',
+        'E0401': 'Consider installing the mentioned libraries.',
+        'E1101': 'Module has no  member. Ensure the module or class has the expected attributes or methods.',
+        'E1121': 'Too many positional arguments for function call .',
+        'E1133': 'Unused variable . Remove the variable or use it in the code.',
+        'E1134': 'Unnecessary statement.',
+        'E1200': 'Unsupported token.',
+        'E9999': 'SyntaxError: invalid syntax.',
+        'F0001': 'Internal error.',
+        'F0010': 'Syntax error.',
+        'F0202': 'Unable to find module. Check if the module is installed and available in the correct path.',
+        'F0401': 'Unable to import module. Check if the module is installed and available in the correct path.',
+        'R0201': 'Method has no argument.',
+        'R0801': 'Similar lines in files.',
+        'R0901': 'Too many ancestors .',
+        'R0902': 'Too many instance attributes .',
+        'R0903': 'Too few public methods . Consider combining similar methods or ensuring the class has enough functionality.',
+        'R0904': 'Too many public methods . Consider refactoring to reduce the number of methods.',
+        'R0911': 'Too many return statements . Consider refactoring to reduce the complexity of the method.',
+        'R0912': 'Too many branches . Consider refactoring to reduce the complexity of the method.',
+        'R0913': 'Too many arguments . Consider refactoring to reduce the number of arguments.',
+        'R0914': 'Too many local variables . Try to reduce the number of variables or break the function into smaller ones.',
+        'R0915': 'Too many statements . Consider breaking the function into smaller, more manageable pieces.',
+        'R1702': 'Too many nested blocks . Consider refactoring to reduce the nesting.',
+        'R1705': 'No exception type(s) specified.',
+        'R1722': 'Consider using sys.exit().',
+        'W0102': 'Dangerous default value. Avoid using mutable default values in function/method definitions.',
+        'W0201': 'Attribute defined outside __init__ method.',
+        'W0212': 'Access to a protected member of a client class.',
+        'W0221': 'Arguments number differs from method.',
+        'W0231': 'Instance attribute defined outside __init__ method.',
+        'W0611': 'Unused import. Remove the import statement.',
+        'W0612': 'Unused variable. Remove the variable or use it in the code.',
+        'W0613': 'Unused argument. Remove the argument or use it in the code.',
+        'W0621': 'Redefining built-in .',
+        'W0702': 'No exception type(s) specified in except clause. Specify the exception type(s) to catch.',
+        'W0703': 'Catching "Exception" is too broad. Instead, catch specific exceptions to handle expected errors and avoid masking other issues. For example, use "except ValueError:" instead of "except Exception:".',
+        'W1514': 'Using `open()` without explicitly specifying an encoding can lead to compatibility issues across different systems and locales. Always specify an encoding (e.g., `open(filename, mode, encoding="utf-8")`) to ensure consistent behavior and to avoid potential encoding-related bugs.',
+    }
 
-    document = Document()
+    print("\nDetected code smells and recommendations:")
+    for issue in issues:
+        # Split issue string to extract path_and_issue and message
+        issue_parts = issue.split(': ', 1)
+        if len(issue_parts) >= 2:
+            path = issue_parts[0]
+            parts = path.split(':')
+            file_path = parts[0]
+            try:
+                line = parts[1]
+            except:
+                line = 'No code smells detected!'
+            message = issue_parts[1]
+            code = message.split(': ', 1)[0].strip()
+            message = message.split(': ', 1)[1].strip()
+            
+            # Add issue to the dictionary
+            if code not in issues_by_code:
+                issues_by_code[code] = {'message': message, 'recommendation': recommendations.get(code, None), 'locations': []}
+            try:
+                issues_by_code[code]['locations'].append((file_path, int(line)))
+            except:
+                pass
 
-    ct = datetime.now().replace(second=0, microsecond=0)
+    # Print issues grouped by code
+    for code, issue_info in issues_by_code.items():
+        print('######################################################################################')
+        print(f"Code: {code}\n")
+        print(f"Code Smell: {issue_info['message']}\n")
+        
+        print("Locations:")
+        for file_path, line_number in issue_info['locations']:
+            try:
+                print(f"- Line: {line_number}")
+            except:
+                continue
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+                if line_number <= len(lines):
+                    print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
+                else:
+                    print(f"  Line number {line_number} exceeds total lines in file.")
+        print() 
 
-    current_date = str(ct).replace(':', '').split(' ')[0]
+        if code in recommendations:
+            print(f"Recommendation: {recommendations[code]}\n")
 
-    document.add_heading('Refactoring Report for ' + current_date, 0)
+        else:
+            print(f"Recommendation: General code improvement suggested.\n")
+    print('#####################################################################################################')
+    print(rate)
+    print('######################################################################################')
 
-    p = document.add_paragraph('Results from the Refactoring analysis for the past '+str(days)+' days:')
+def run_checkstyle(java_file, checkstyle_jar, checkstyle_config):
+    # Command to run Checkstyle and capture output in XML format
+    command = ['java', '-jar', checkstyle_jar,'-c', checkstyle_config,'-f', 'xml',java_file]
 
-    global records
+    try:
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True)
+        stdout = result.stdout
+        stderr = result.stderr
+        
+        if stderr:
+            print(f"Checkstyle error (stderr): {stderr}")
+        
+        # Parse XML output
+        if stdout:
+            root = ET.fromstring(stdout)
+            errors = []
 
-    table = document.add_table(rows=1, cols=3)
-    hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Class Name'
-    hdr_cells[1].text = 'Commit Count'
-    hdr_cells[2].text = 'Avg Refactor Time Ratio'
-    for class_name, commit_count, refactor_ratio in records:
-        row_cells = table.add_row().cells
-        row_cells[0].text = class_name
-        row_cells[1].text = commit_count
-        row_cells[2].text = refactor_ratio
+            # Iterate over <file> elements
+            for file_elem in root.findall('file'):
+                filename = file_elem.get('name')
+                # Iterate over <error> elements
+                for error_elem in file_elem.findall('error'):
+                    line = error_elem.get('line')
+                    message = error_elem.get('message')
+                    errors.append((int(line), message))
 
-    document.add_page_break()
+            # Sort errors by line number
+            errors.sort(key=lambda x: x[0])
 
-    document.save('Refactoring Report - ' + str(ct).replace(':', '') + '.docx')
+            # Format errors as "line number, error message" and print
+            for line, message in errors:
+                print(f"{line}, {message}")
+
+        return stdout, stderr  # Return both stdout and stderr
+    except subprocess.CalledProcessError as e:
+        print(f"Checkstyle output (stdout): {e.stdout}")
+        print(f"Checkstyle error (stderr): {e.stderr}")
+        return None, None
+def check_java_code_smells(xml_content):
+    try:
+        root = ET.fromstring(xml_content)
+
+        errors = []
+        for file in root.findall('file'):
+            filename = file.get('name')
+            for error in file.findall('error'):
+                line = error.get('line')
+                column = error.get('column')
+                severity = error.get('severity')
+                message = error.text
+                errors.append(f"{filename}:{line}:{column}: {severity} - {message}")
+
+        return errors
+    except ET.ParseError as e:
+        print(f"Error parsing XML: {e}")
+        return []
 
 def main(repo_url, days):
-    
     clone_dir = 'cloned_repo'
+    checkstyle_jar = "checkstyle-10.17.0-all.jar"
+    checkstyle_config = "checkstyle.xml"
 
     # Check if clone directory already exists
-    if not os.path.exists(clone_dir):
-        # Clone the repository if it doesn't exist
-        if not clone_repository(repo_url, clone_dir):
-            return
-    else:
-        print(f"Using existing clone directory: {clone_dir}")
+    if os.path.exists(clone_dir):
+        os.system(f'rd /s /q "{clone_dir}"')
+
+    if not clone_repository(repo_url, clone_dir):
+        return
 
     # Find Python and Java files in the cloned repository
     python_files = find_python_files(clone_dir)
@@ -161,37 +311,66 @@ def main(repo_url, days):
 
     # Analyze refactoring frequency for each file
     for file_path in all_files:
-        print(f"\nSelected file for analysis: {file_path}")
+        print("*****************************************************************************************************")
+        print(f"Selected file for analysis: {file_path}")
+        print("*****************************************************************************************************")
+        
+        if '.py' in file_path:
+            # Check for python code smells
+            issues = check_python_code_smells(file_path)
+            if issues == -1:
+                return
+
+            # Provide Python refactoring recommendations
+            provide_python_recommendations(issues)
+
+        elif '.java' in file_path:
+             # Run Checkstyle
+            stdout, stderr = run_checkstyle(file_path, checkstyle_jar, checkstyle_config)
+
+            if stderr:
+                print(f"Checkstyle encountered an error:\n{stderr}")
+            elif stdout:
+                # Parse Checkstyle XML output
+                errors = check_java_code_smells(stdout)
+
+                if errors:
+                    # Print errors
+                    print("Checkstyle found the following errors:")
+                    for error in errors:
+                        print(error)
+                else:
+                    print("No Checkstyle errors found.")
+
+            #issues = check_java_code_smells(file_path)
+            #if issues == -1:
+            #    return
+
+            #print(issues)
 
         # Check refactoring frequency
         file_path_in_repo = os.path.relpath(file_path, clone_dir)
         refactor_ratio = check_refactoring_frequency(clone_dir, file_path_in_repo, days)
 
         if refactor_ratio is None:
-            print("Error occurred during refactoring frequency analysis.")
+            print("Not enough data for refactoring frequency analysis.\n")
             continue
         elif refactor_ratio == -1:
-            print("Not enough commits to analyze refactoring frequency.")
+            print("Not enough commits to analyze refactoring frequency.\n")
             continue
 
         # Provide insights based on refactoring frequency for the current file
         if refactor_ratio < 0.1:
-            print("\nRefactoring is recommended based on the observed refactoring time ratios.")
+            print("\nRefactoring is recommended based on the observed refactoring time ratios.\n")
         elif refactor_ratio > 0.5:
-            print("\nIt seems like there has been frequent refactoring recently. Consider stabilizing the code.")
+            print("\nIt seems like there has been frequent refactoring recently. Consider stabilizing the code.\n")
         else:
-            print("\nThe code seems stable with minimal recent changes.")
-
-    generate_report(days)
+            print("\nThe code seems stable with minimal recent changes.\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python check_refactoring.py <repository_url> <Number_Of_Days>")
+        print("Usage: python check_refactoring.py <repository_url> <number_of_days>")
     else:
         repo_url = sys.argv[1]
-        try:
-            days = int(sys.argv[2])
-        except ValueError:
-            print("NumberOfDays must be an integer.")
-            sys.exit(1)
+        days = int(sys.argv[2])
         main(repo_url, days)
