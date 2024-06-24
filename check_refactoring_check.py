@@ -32,43 +32,60 @@ def select_main_python_file(python_files):
     return None
 
 def calculate_code_similarity(old_code, new_code):
-    diff = difflib.ndiff(old_code.splitlines(), new_code.splitlines())
-    changes = [line for line in diff if line.startswith(('+', '-'))]
-    return 1 - (len(changes) / max(len(old_code.splitlines()), len(new_code.splitlines())))
+    old_tokens = list(old_code.split())
+    new_tokens = list(new_code.split())
+    
+    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens)
+    similarity_ratio = matcher.ratio()
+    
+    return similarity_ratio
 
-def check_refactoring_frequency(repo_path, file_path, days):
+def check_refactoring_frequency(repo_path, file_path, num_commits):
     try:
+        # Initialize repository object
         repo = Repo(repo_path)
+        
         # Convert backslashes to forward slashes for Git compatibility
         git_file_path = file_path.replace('\\', '/')
-        commits = list(repo.iter_commits(paths=git_file_path, since=(datetime.now() - timedelta(days=days)).isoformat()))
-
-        print(f"\nNumber of commits affecting {git_file_path} in the last {days} days: {len(commits)}")
-
+        
+        # Fetch commits with a max count of 'num_commits' or all available commits if fewer
+        commits = list(repo.iter_commits(paths=git_file_path, max_count=num_commits))
+        
+        print(f"\nNumber of commits affecting {git_file_path}: {len(commits)}")
+        
+        # Check if there are enough commits to analyze
         if len(commits) < 2:
             print("Not enough commits to analyze refactoring frequency.")
-            return
-
+            return None
+        
         refactoring_time_ratios = []
+        
+        # Calculate refactoring time ratios between consecutive commits
         for i in range(1, len(commits)):
             commit_time = commits[i-1].committed_datetime
             previous_commit_time = commits[i].committed_datetime
-            time_diff = (commit_time - previous_commit_time).total_seconds() / 3600  # in hours
-
+            time_diff = abs((commit_time - previous_commit_time).total_seconds()) / 3600  # in hours
+            
             old_code = (commits[i].tree / git_file_path).data_stream.read().decode()
             new_code = (commits[i-1].tree / git_file_path).data_stream.read().decode()
-
+            
             similarity = calculate_code_similarity(old_code, new_code)
             refactoring_time_ratio = (1 - similarity) * time_diff
             refactoring_time_ratios.append(refactoring_time_ratio)
-
+        
+        if not refactoring_time_ratios:
+            print("No refactoring detected in the specified commits.")
+            return 0.0  # Return 0.0 or another default value if no refactoring is detected
+        
+        # Calculate average refactoring time ratio
         avg_refactoring_time_ratio = sum(refactoring_time_ratios) / len(refactoring_time_ratios)
         print(f"Average refactoring time ratio: {avg_refactoring_time_ratio:.2f}")
-
+        
         return avg_refactoring_time_ratio
+    
     except Exception as e:
         print(f"An error occurred while analyzing the repository: {e}")
-        return -1
+        return None
 
 def check_python_code_smells(file_path):
     global rate
@@ -110,7 +127,8 @@ def provide_python_recommendations(issues):
         'C0200': 'Consider using enumerate() instead of iterating with range() and len().',
         'C0301': 'Line too long . Consider breaking the line into smaller parts.',
         'C0302': 'Too many lines in module . Consider refactoring into smaller modules.',
-        'C0303': 'Trailing whitespace found.',
+        'C0303': 'Consider removing unnecessary empty spaces.',
+        'C0305': 'Consider removing unnecessary empty lines.',
         'C0321': 'Multiple statements on one line.',
         'C0325': 'Unnecessary parens after.',
         'C0330': 'Consider fixing indentation.',
@@ -141,6 +159,7 @@ def provide_python_recommendations(issues):
         'R0915': 'Too many statements . Consider breaking the function into smaller, more manageable pieces.',
         'R1702': 'Too many nested blocks . Consider refactoring to reduce the nesting.',
         'R1705': 'No exception type(s) specified.',
+        'R1716': 'Consider separating comparisons with prantesis.',
         'R1722': 'Consider using sys.exit().',
         'W0102': 'Dangerous default value. Avoid using mutable default values in function/method definitions.',
         'W0201': 'Attribute defined outside __init__ method.',
@@ -209,7 +228,7 @@ def provide_python_recommendations(issues):
     print(rate)
     print('######################################################################################')
 
-def main(repo_url, days):
+def main(repo_url, num_commits):
     clone_dir = 'cloned_repo'
     checkstyle_jar = "checkstyle-10.17.0-all.jar"
     checkstyle_config = "checkstyle.xml"
@@ -246,7 +265,7 @@ def main(repo_url, days):
 
         # Check refactoring frequency
         file_path_in_repo = os.path.relpath(file_path, clone_dir)
-        refactor_ratio = check_refactoring_frequency(clone_dir, file_path_in_repo, days)
+        refactor_ratio = check_refactoring_frequency(clone_dir, file_path_in_repo, num_commits)
 
         if refactor_ratio is None:
             print("Not enough data for refactoring frequency analysis.\n")
@@ -256,17 +275,26 @@ def main(repo_url, days):
             continue
 
         # Provide insights based on refactoring frequency for the current file
-        if refactor_ratio < 0.1:
-            print("\nRefactoring is recommended based on the observed refactoring time ratios.\n")
+        if refactor_ratio is None:
+            print("\nNot enough data for refactoring frequency analysis.\n")
+        elif refactor_ratio == 0:
+            print("\nNo significant refactoring activity detected in the specified commits.\n")
+        elif refactor_ratio < 0.1:
+            print("\nThe observed refactoring time ratios suggest low refactoring activity.\n")
+            print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
+        elif 0.1 <= refactor_ratio <= 0.5:
+            print("\nThere has been moderate refactoring activity observed recently.\n")
+            print("Recommendation: Ensure that refactoring efforts are targeted and aligned with improving maintainability and reducing technical debt.\n")
         elif refactor_ratio > 0.5:
-            print("\nIt seems like there has been frequent refactoring recently. Consider stabilizing the code.\n")
+            print("\nThere has been significant refactoring activity recently.\n")
+            print("Recommendation: Evaluate the impact of frequent changes and consider strategies to stabilize the codebase to avoid introducing unintended issues.\n")
         else:
-            print("\nThe code seems stable with minimal recent changes.\n")
+            print("\nUnexpected value for refactor_ratio. Please review the analysis.\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python check_refactoring.py <repository_url> <number_of_days>")
+        print("Usage: python check_refactoring.py <repository_url> <number_of_commits>")
     else:
         repo_url = sys.argv[1]
-        days = int(sys.argv[2])
-        main(repo_url, days)
+        num_commits = int(sys.argv[2])
+        main(repo_url, num_commits)
