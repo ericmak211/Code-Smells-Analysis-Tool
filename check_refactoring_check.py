@@ -1,11 +1,9 @@
 import subprocess
 import sys
 import os
-import shutil
 from datetime import datetime, timedelta
 from git import Repo
 import difflib
-import xml.etree.ElementTree as ET
 
 rate = ''
 def clone_repository(repo_url, clone_dir):
@@ -21,14 +19,6 @@ def find_python_files(directory):
                 python_files.append(os.path.join(root, file))
     return python_files
 
-def find_java_files(directory):
-    java_files = []
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.java'):
-                java_files.append(os.path.join(root, file))
-    return java_files
-
 def select_main_python_file(python_files):
     # Heuristic to prioritize certain files
     priority_files = ['main.py', 'app.py']
@@ -39,16 +29,6 @@ def select_main_python_file(python_files):
     # If no priority file is found, return the first Python file found
     if python_files:
         return python_files[0]
-    return None
-
-def select_main_java_file(java_files):
-    priority_files = ['Main.java', 'App.java']
-    for priority_file in priority_files:
-        for file in java_files:
-            if file.endswith(priority_file):
-                return file
-    if java_files:
-        return java_files[0]
     return None
 
 def calculate_code_similarity(old_code, new_code):
@@ -229,63 +209,6 @@ def provide_python_recommendations(issues):
     print(rate)
     print('######################################################################################')
 
-def run_checkstyle(java_file, checkstyle_jar, checkstyle_config):
-    # Command to run Checkstyle and capture output in XML format
-    command = ['java', '-jar', checkstyle_jar,'-c', checkstyle_config,'-f', 'xml',java_file]
-
-    try:
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, text=True)
-        stdout = result.stdout
-        stderr = result.stderr
-        
-        if stderr:
-            print(f"Checkstyle error (stderr): {stderr}")
-        
-        # Parse XML output
-        if stdout:
-            root = ET.fromstring(stdout)
-            errors = []
-
-            # Iterate over <file> elements
-            for file_elem in root.findall('file'):
-                filename = file_elem.get('name')
-                # Iterate over <error> elements
-                for error_elem in file_elem.findall('error'):
-                    line = error_elem.get('line')
-                    message = error_elem.get('message')
-                    errors.append((int(line), message))
-
-            # Sort errors by line number
-            errors.sort(key=lambda x: x[0])
-
-            # Format errors as "line number, error message" and print
-            for line, message in errors:
-                print(f"{line}, {message}")
-
-        return stdout, stderr  # Return both stdout and stderr
-    except subprocess.CalledProcessError as e:
-        print(f"Checkstyle output (stdout): {e.stdout}")
-        print(f"Checkstyle error (stderr): {e.stderr}")
-        return None, None
-def check_java_code_smells(xml_content):
-    try:
-        root = ET.fromstring(xml_content)
-
-        errors = []
-        for file in root.findall('file'):
-            filename = file.get('name')
-            for error in file.findall('error'):
-                line = error.get('line')
-                column = error.get('column')
-                severity = error.get('severity')
-                message = error.text
-                errors.append(f"{filename}:{line}:{column}: {severity} - {message}")
-
-        return errors
-    except ET.ParseError as e:
-        print(f"Error parsing XML: {e}")
-        return []
-
 def main(repo_url, days):
     clone_dir = 'cloned_repo'
     checkstyle_jar = "checkstyle-10.17.0-all.jar"
@@ -298,15 +221,12 @@ def main(repo_url, days):
     if not clone_repository(repo_url, clone_dir):
         return
 
-    # Find Python and Java files in the cloned repository
-    python_files = find_python_files(clone_dir)
-    java_files = find_java_files(clone_dir)
+    # Find Python files in the cloned repository
+    all_files = find_python_files(clone_dir)
 
-    # Combine Python and Java files for flexibility in analysis
-    all_files = python_files + java_files
 
     if not all_files:
-        print("No Python or Java files found in the repository.")
+        print("No Python files found in the repository.")
         return
 
     # Analyze refactoring frequency for each file
@@ -323,30 +243,6 @@ def main(repo_url, days):
 
             # Provide Python refactoring recommendations
             provide_python_recommendations(issues)
-
-        elif '.java' in file_path:
-             # Run Checkstyle
-            stdout, stderr = run_checkstyle(file_path, checkstyle_jar, checkstyle_config)
-
-            if stderr:
-                print(f"Checkstyle encountered an error:\n{stderr}")
-            elif stdout:
-                # Parse Checkstyle XML output
-                errors = check_java_code_smells(stdout)
-
-                if errors:
-                    # Print errors
-                    print("Checkstyle found the following errors:")
-                    for error in errors:
-                        print(error)
-                else:
-                    print("No Checkstyle errors found.")
-
-            #issues = check_java_code_smells(file_path)
-            #if issues == -1:
-            #    return
-
-            #print(issues)
 
         # Check refactoring frequency
         file_path_in_repo = os.path.relpath(file_path, clone_dir)
