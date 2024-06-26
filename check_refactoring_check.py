@@ -6,11 +6,13 @@ from git import Repo
 import difflib
 
 rate = ''
+# Clones the repository
 def clone_repository(repo_url, clone_dir):
     Repo.clone_from(repo_url, clone_dir)
-    print(f"\nRepository cloned to {clone_dir}")
+    print(f"\nRepository cloned to {clone_dir}\n")
     return True
-        
+
+# Find all Python files
 def find_python_files(directory):
     python_files = []
     for root, _, files in os.walk(directory):
@@ -19,8 +21,8 @@ def find_python_files(directory):
                 python_files.append(os.path.join(root, file))
     return python_files
 
+# Find priority files
 def select_main_python_file(python_files):
-    # Heuristic to prioritize certain files
     priority_files = ['main.py', 'app.py']
     for priority_file in priority_files:
         for file in python_files:
@@ -31,6 +33,7 @@ def select_main_python_file(python_files):
         return python_files[0]
     return None
 
+# Calculates the similarity ratio between two commited files
 def calculate_code_similarity(old_code, new_code):
     old_tokens = list(old_code.split())
     new_tokens = list(new_code.split())
@@ -40,6 +43,7 @@ def calculate_code_similarity(old_code, new_code):
     
     return similarity_ratio
 
+# Calculates the refactoring time ratio of the commits on the file
 def check_refactoring_frequency(repo_path, file_path, num_commits):
     try:
         # Initialize repository object
@@ -58,29 +62,30 @@ def check_refactoring_frequency(repo_path, file_path, num_commits):
             print("Not enough commits to analyze refactoring frequency.")
             return None
         
-        refactoring_time_ratios = []
+        coding_time_ratios = []
         
         # Calculate refactoring time ratios between consecutive commits
         for i in range(1, len(commits)):
             commit_time = commits[i-1].committed_datetime
             previous_commit_time = commits[i].committed_datetime
             time_diff = abs((commit_time - previous_commit_time).total_seconds()) / 3600  # in hours
-            old_code = (commits[i].tree / git_file_path).data_stream.read().decode()
+
             new_code = (commits[i-1].tree / git_file_path).data_stream.read().decode()
+            old_code = (commits[i].tree / git_file_path).data_stream.read().decode()
             
             similarity = calculate_code_similarity(old_code, new_code)
-            refactoring_time_ratio = (1 - similarity) * time_diff
-            refactoring_time_ratios.append(refactoring_time_ratio)
+            coding_time_ratio = (1 - similarity) * time_diff
+            coding_time_ratios.append(coding_time_ratio)
         
-        if not refactoring_time_ratios:
+        if not coding_time_ratios:
             print("No refactoring detected in the specified commits.")
             return 0.0  # Return 0.0 or another default value if no refactoring is detected
         
         # Calculate average refactoring time ratio
-        avg_refactoring_time_ratio = sum(refactoring_time_ratios) / len(refactoring_time_ratios)
-        print(f"Average refactoring time ratio: {avg_refactoring_time_ratio:.2f}")
+        avg_coding_time_ratio = sum(coding_time_ratios) / len(coding_time_ratios)
+        print(f"\nAverage coding time ratio: {avg_coding_time_ratio:.2f}")
         
-        return avg_refactoring_time_ratio
+        return avg_coding_time_ratio
     
     except Exception as e:
         print(f"An error occurred while analyzing the repository: {e}")
@@ -119,15 +124,12 @@ def check_python_code_smells(file_path):
 def provide_python_recommendations(issues):
     issues_by_code = {}
     recommendations = {
-        'C0103': 'Invalid name . Use a consistent naming style, such as snake_case for variables and functions, and CamelCase for classes.',
         'C0111': 'Missing module/class/function docstring. Consider adding a docstring to improve code documentation.',
         'C0114': 'To improve code readability and maintainability, include a docstring at the beginning of your module. A good module docstring should provide a brief overview of the module\'s purpose, its functionality, and any important information that might help other developers understand and use the module. Follow the PEP 257 conventions for module docstrings.',
         'C0116': 'To improve code readability and maintainability, always include a docstring at the beginning of your functions and methods. A good docstring should describe the purpose of the function, its parameters, return values, and any exceptions it might raise. Follow the PEP 257 conventions for docstrings.',
         'C0200': 'Consider using enumerate() instead of iterating with range() and len().',
         'C0301': 'Line too long . Consider breaking the line into smaller parts.',
         'C0302': 'Too many lines in module . Consider refactoring into smaller modules.',
-        'C0303': 'Consider removing unnecessary empty spaces.',
-        'C0305': 'Consider removing unnecessary empty lines.',
         'C0321': 'Multiple statements on one line.',
         'C0325': 'Unnecessary parens after.',
         'C0330': 'Consider fixing indentation.',
@@ -200,29 +202,29 @@ def provide_python_recommendations(issues):
 
     # Print issues grouped by code
     for code, issue_info in issues_by_code.items():
-        print('######################################################################################')
-        print(f"Code: {code}\n")
-        print(f"Code Smell: {issue_info['message']}\n")
-        
-        print("Locations:")
-        for file_path, line_number in issue_info['locations']:
-            try:
-                print(f"- Line: {line_number}")
-            except:
-                continue
-            with open(file_path, 'r', encoding='utf-8') as file:
-                lines = file.readlines()
-                if line_number <= len(lines):
-                    print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
-                else:
-                    print(f"  Line number {line_number} exceeds total lines in file.")
-        print() 
-
         if code in recommendations:
+            if code == 'E0401':
+                issue_info['message'] = "Unable to import the following libraries:"
+
+            print('######################################################################################')
+            print(f"Code: {code}\n")
+            print(f"Code Smell: {issue_info['message']}\n")
+            
+            print("Locations:")
+            for file_path, line_number in issue_info['locations']:
+                try:
+                    print(f"- Line: {line_number}")
+                except:
+                    continue
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    lines = file.readlines()
+                    if line_number <= len(lines):
+                        print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
+                    else:
+                        print(f"  Line number {line_number} exceeds total lines in file.")
+            print() 
             print(f"Recommendation: {recommendations[code]}\n")
 
-        else:
-            print(f"Recommendation: General code improvement suggested.\n")
     print('#####################################################################################################')
     print(rate)
     print('######################################################################################')
@@ -232,10 +234,13 @@ def main(repo_url, num_commits):
     checkstyle_jar = "checkstyle-10.17.0-all.jar"
     checkstyle_config = "checkstyle.xml"
 
+    print()
+
     # Check if clone directory already exists
     if os.path.exists(clone_dir):
         os.system(f'rd /s /q "{clone_dir}"')
 
+    print("\nCloning the Repository...\n")
     if not clone_repository(repo_url, clone_dir):
         return
 
