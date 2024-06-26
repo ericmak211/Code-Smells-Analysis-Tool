@@ -65,7 +65,6 @@ def check_refactoring_frequency(repo_path, file_path, num_commits):
             commit_time = commits[i-1].committed_datetime
             previous_commit_time = commits[i].committed_datetime
             time_diff = abs((commit_time - previous_commit_time).total_seconds()) / 3600  # in hours
-            
             old_code = (commits[i].tree / git_file_path).data_stream.read().decode()
             new_code = (commits[i-1].tree / git_file_path).data_stream.read().decode()
             
@@ -127,6 +126,8 @@ def provide_python_recommendations(issues):
         'C0200': 'Consider using enumerate() instead of iterating with range() and len().',
         'C0301': 'Line too long . Consider breaking the line into smaller parts.',
         'C0302': 'Too many lines in module . Consider refactoring into smaller modules.',
+        'C0303': 'Consider removing unnecessary empty spaces.',
+        'C0305': 'Consider removing unnecessary empty lines.',
         'C0321': 'Multiple statements on one line.',
         'C0325': 'Unnecessary parens after.',
         'C0330': 'Consider fixing indentation.',
@@ -199,33 +200,29 @@ def provide_python_recommendations(issues):
 
     # Print issues grouped by code
     for code, issue_info in issues_by_code.items():
-        if code in recommendations:
-            if code == 'E0401':
-                issue_info['message'] = 'Unable to import following libraries:'
-            print('######################################################################################')
-            print(f"Code: {code}\n")
-            print(f"Code Smell: {issue_info['message']}\n")
-            
-            print("Locations:")
-            for file_path, line_number in issue_info['locations']:
-                try:
-                    print(f"- Line: {line_number}")
-                except:
-                    continue
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    lines = file.readlines()
-                    if line_number <= len(lines):
-                        print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
-                    else:
-                        print(f"  Line number {line_number} exceeds total lines in file.")
-            print() 
+        print('######################################################################################')
+        print(f"Code: {code}\n")
+        print(f"Code Smell: {issue_info['message']}\n")
+        
+        print("Locations:")
+        for file_path, line_number in issue_info['locations']:
+            try:
+                print(f"- Line: {line_number}")
+            except:
+                continue
+            with open(file_path, 'r', encoding='utf-8') as file:
+                lines = file.readlines()
+                if line_number <= len(lines):
+                    print(f"  {lines[line_number - 1].strip()}")  # Print the line of code
+                else:
+                    print(f"  Line number {line_number} exceeds total lines in file.")
+        print() 
 
-            
+        if code in recommendations:
             print(f"Recommendation: {recommendations[code]}\n")
 
         else:
-            continue
-
+            print(f"Recommendation: General code improvement suggested.\n")
     print('#####################################################################################################')
     print(rate)
     print('######################################################################################')
@@ -281,17 +278,12 @@ def main(repo_url, num_commits):
             print("\nNot enough data for refactoring frequency analysis.\n")
         elif refactor_ratio == 0:
             print("\nNo significant refactoring activity detected in the specified commits.\n")
-        elif refactor_ratio < 0.1:
-            print("\nThe observed refactoring time ratios suggest low refactoring activity.\n")
-            print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
-        elif 0.1 <= refactor_ratio <= 0.5:
-            print("\nThere has been moderate refactoring activity observed recently.\n")
-            print("Recommendation: Ensure that refactoring efforts are targeted and aligned with improving maintainability and reducing technical debt.\n")
-        elif refactor_ratio > 0.5:
+        elif refactor_ratio <= 0.4:
             print("\nThere has been significant refactoring activity recently.\n")
             print("Recommendation: Evaluate the impact of frequent changes and consider strategies to stabilize the codebase to avoid introducing unintended issues.\n")
-        else:
-            print("\nUnexpected value for refactor_ratio. Please review the analysis.\n")
+        elif refactor_ratio >= 0.5:
+            print("\nThe observed refactoring time ratios suggest low refactoring activity.\n")
+            print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
