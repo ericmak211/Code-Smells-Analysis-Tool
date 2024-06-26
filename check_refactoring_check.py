@@ -176,7 +176,6 @@ def provide_python_recommendations(issues):
         'W1514': 'Using `open()` without explicitly specifying an encoding can lead to compatibility issues across different systems and locales. Always specify an encoding (e.g., `open(filename, mode, encoding="utf-8")`) to ensure consistent behavior and to avoid potential encoding-related bugs.',
     }
 
-    print("\nDetected code smells and recommendations:")
     for issue in issues:
         # Split issue string to extract path_and_issue and message
         issue_parts = issue.split(': ', 1)
@@ -200,7 +199,7 @@ def provide_python_recommendations(issues):
             except:
                 pass
 
-    # Print issues grouped by code
+    # Print issues grouped by code and recommendations
     for code, issue_info in issues_by_code.items():
         if code in recommendations:
             if code == 'E0401':
@@ -227,7 +226,7 @@ def provide_python_recommendations(issues):
 
     print('#####################################################################################################')
     print(rate)
-    print('######################################################################################')
+    print('#####################################################################################################')
 
 def main(repo_url, num_commits):
     clone_dir = 'cloned_repo'
@@ -257,15 +256,6 @@ def main(repo_url, num_commits):
         print("*****************************************************************************************************")
         print(f"Selected file for analysis: {file_path}")
         print("*****************************************************************************************************")
-        
-        if '.py' in file_path:
-            # Check for python code smells
-            issues = check_python_code_smells(file_path)
-            if issues == -1:
-                return
-
-            # Provide Python refactoring recommendations
-            provide_python_recommendations(issues)
 
         # Check refactoring frequency
         file_path_in_repo = os.path.relpath(file_path, clone_dir)
@@ -289,6 +279,17 @@ def main(repo_url, num_commits):
         elif refactor_ratio >= 0.5:
             print("\nThe observed refactoring time ratios suggest low refactoring activity.\n")
             print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
+
+        print("*****************************************************************************************************\n")
+        print("Here are some of the important code smells found in the code:")
+        if '.py' in file_path:
+            # Check for python code smells
+            issues = check_python_code_smells(file_path)
+            if issues == -1:
+                return
+
+            # Provide Python refactoring recommendations
+            provide_python_recommendations(issues)
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
