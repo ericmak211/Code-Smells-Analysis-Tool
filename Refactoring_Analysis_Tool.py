@@ -175,7 +175,9 @@ def provide_python_recommendations(issues):
         'W0703': 'Catching "Exception" is too broad. Instead, catch specific exceptions to handle expected errors and avoid masking other issues. For example, use "except ValueError:" instead of "except Exception:".',
         'W1514': 'Using `open()` without explicitly specifying an encoding can lead to compatibility issues across different systems and locales. Always specify an encoding (e.g., `open(filename, mode, encoding="utf-8")`) to ensure consistent behavior and to avoid potential encoding-related bugs.',
     }
-
+    
+    print("*****************************************************************************************************\n")
+    print("Here are some of the important issues found in the code:")
     for issue in issues:
         # Split issue string to extract path_and_issue and message
         issue_parts = issue.split(': ', 1)
@@ -261,27 +263,21 @@ def main(repo_url, num_commits):
         file_path_in_repo = os.path.relpath(file_path, clone_dir)
         refactor_ratio = check_refactoring_frequency(clone_dir, file_path_in_repo, num_commits)
 
-        if refactor_ratio is None:
-            print("Not enough data for refactoring frequency analysis.\n")
-            continue
-        elif refactor_ratio == -1:
-            print("Not enough commits to analyze refactoring frequency.\n")
-            continue
-
         # Provide insights based on refactoring frequency for the current file
         if refactor_ratio is None:
             print("\nNot enough data for refactoring frequency analysis.\n")
         elif refactor_ratio == 0:
             print("\nNo significant refactoring activity detected in the specified commits.\n")
-        elif refactor_ratio <= 0.4:
+        elif refactor_ratio <= 16:
             print("\nThere has been significant refactoring activity recently.\n")
             print("Recommendation: Evaluate the impact of frequent changes and consider strategies to stabilize the codebase to avoid introducing unintended issues.\n")
-        elif refactor_ratio >= 0.5:
+        elif refactor_ratio > 16:
             print("\nThe observed refactoring time ratios suggest low refactoring activity.\n")
             print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
+        elif refactor_ratio == -1:
+            print("Not enough commits to analyze refactoring frequency.\n")
+            continue
 
-        print("*****************************************************************************************************\n")
-        print("Here are some of the important issues found in the code:")
         if '.py' in file_path:
             # Check for python code smells
             issues = check_python_code_smells(file_path)
