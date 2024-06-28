@@ -207,7 +207,7 @@ def provide_python_recommendations(issues):
 
             print('######################################################################################')
             print(f"Code: {code}\n")
-            print(f"Code Smell: {issue_info['message']}\n")
+            print(f"Issue: {issue_info['message']}\n")
             
             print("Locations:")
             for file_path, line_number in issue_info['locations']:
@@ -281,7 +281,7 @@ def main(repo_url, num_commits):
             print("Recommendation: Consider periodically reviewing and refactoring the codebase to maintain code quality and flexibility.\n")
 
         print("*****************************************************************************************************\n")
-        print("Here are some of the important code smells found in the code:")
+        print("Here are some of the important issues found in the code:")
         if '.py' in file_path:
             # Check for python code smells
             issues = check_python_code_smells(file_path)
