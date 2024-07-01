@@ -115,83 +115,45 @@ def generate_report(days):
 
     ct = datetime.now().replace(second=0, microsecond=0)
 
-    """ current_date = str(ct).replace(':', '').split(' ')[0] """
+    current_date = str(ct).replace(':', '').split(' ')[0]
 
     obj_styles = document.styles
     obj_charstyle = obj_styles.add_style('Content Header', WD_STYLE_TYPE.CHARACTER)
     obj_font = obj_charstyle.font
     obj_font.size = Pt(18)
 
-    document.add_heading('Refactoring Activities Report', 0)
+    document.add_heading('Refactoring Activities Report for ' + current_date, 0)
 
     p = document.add_paragraph('')
     p.add_run('Executive Summary', style = 'Content Header').bold = True
 
-    document.add_paragraph('This report provides an overview of the refactoring activities undertaken during the project timeline, detailing the impact on code quality, time allocation, and resource utilization. The report highlights key metrics, identifies trends, and offers recommendations for optimizing future refactoring efforts.')
-
-    p = document.add_paragraph('')
-    p.add_run('Detailed Metrics', style = 'Content Header').bold = True
-    document.add_paragraph('Time Allocation')
-    document.add_paragraph('Total Time Spent on Refactoring: ', style='List Bullet')
-    document.add_paragraph('Total Time Spent on Feature Development: ', style='List Bullet')
-    document.add_paragraph('Percentage of Time Spent on Refactoring: ', style='List Bullet')
-
-    document.add_paragraph('Refactoring Activities Breakdown')
-    document.add_paragraph('Extract Method: ', style='List Bullet')
-    document.add_paragraph('Rename Variable: ', style='List Bullet')
-    document.add_paragraph('Move Method: ', style='List Bullet')
-    document.add_paragraph('Inline Method: ', style='List Bullet')
-    document.add_paragraph('Simplify Conditioal Expressions: ', style='List Bullet')
-
-    document.add_paragraph('Code Quality Metrics')
-    document.add_paragraph('Code Complexity (Cyclomatic Complexity): ', style='List Bullet')
-    document.add_paragraph('Before Refactoring: ', style='List Bullet 2')
-    document.add_paragraph('After Refactoring: ', style='List Bullet 2')
-
-    document.add_paragraph('Code Duplication: ', style='List Bullet')
-    document.add_paragraph('Before Refactoring: ', style='List Bullet 2')
-    document.add_paragraph('After Refactoring: ', style='List Bullet 2')
-
-    document.add_paragraph('Number of Code Smells: ', style='List Bullet')
-    document.add_paragraph('Before Refactoring: ', style='List Bullet 2')
-    document.add_paragraph('After Refactoring: ', style='List Bullet 2')
-
-    document.add_paragraph('Resource Utilization')
-    document.add_paragraph('Developer Hours Utilized:', style='List Bullet')
-    document.add_paragraph('Developer A: ', style='List Bullet 2')
-    document.add_paragraph('Developer B: ', style='List Bullet 2')
-    document.add_paragraph('Developer C: ', style='List Bullet 2')
+    document.add_paragraph('This report provides an overview of the refactoring activities undertaken during the project timeline. The report highlights the commits and refactoring ratios for each file and offers recommendations for optimizing future refactoring efforts.')
 
     document.add_paragraph('Tools and Software Used:', style='List Bullet')
     document.add_paragraph('IDE Plugins: Refactoring Time Management Plugin', style='List Bullet 2')
     document.add_paragraph('Analysis Tools: SonarQube, CodeClimate', style='List Bullet 2')
 
     p = document.add_paragraph('')
-    p.add_run('Visualizations', style = 'Content Header').bold = True
-    document.add_paragraph('Time Allocation Pie Chart')
-    document.add_paragraph('Refactoring Activities Bar Chart')
-    document.add_paragraph('Code Complexity Trend Line')
+    p.add_run('File Summary', style = 'Content Header').bold = True
+
+    global records
+
+    table = document.add_table(rows=1, cols=3)
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Class Name'
+    hdr_cells[1].text = 'Commit Ct.'
+    hdr_cells[2].text = 'Avg Refactor Time Ratio'
+    for class_name, commit_count, refactor_ratio in records:
+        row_cells = table.add_row().cells
+        row_cells[0].text = class_name
+        row_cells[1].text = commit_count
+        row_cells[2].text = refactor_ratio
 
     p = document.add_paragraph('')
     p.add_run('Recommendations', style = 'Content Header').bold = True
     p1 = document.add_paragraph('Balance Refactoring and Development: Aim to Maintain refactoring activities at around 20%% of total development time to ensure new feature development remains on track.', style='List Number')
     p2 = document.add_paragraph('Prioritize High-Impact Refactoring: Focus on refactoring activities that significantly reduce code complexity and code smells', style='List Number')
     p3 = document.add_paragraph('Automate Code Quality Checks: Implement continuous integration tools to automatically check for code smells and complexity, ensuring early detection and resolution.', style='List Number')
-
-    """ global records
-
-    table = document.add_table(rows=1, cols=3)
-    hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Class Name'
-    hdr_cells[1].text = 'Commit Count'
-    hdr_cells[2].text = 'Avg Refactor Time Ratio'
-    for class_name, commit_count, refactor_ratio in records:
-        row_cells = table.add_row().cells
-        row_cells[0].text = class_name
-        row_cells[1].text = commit_count
-        row_cells[2].text = refactor_ratio """
-
-    document.add_page_break()
 
     document.save('Refactoring Report - ' + str(ct).replace(':', '') + '.docx')
 
